@@ -34,6 +34,11 @@
                   :nants-sqrt 10 ; Number of ants = nants-sqrt^2
                   :pher-scale 20.0 ; Scale factor for pheromone drawing
                   :scale 5 ; Pixels per world cell
+                  :start-enery 5000
+                  :hunger-threshold 2000
+                  :base-life 50000
+                  :life-random 50000
+                  :num-queens 1 ; Number of queens to spawn on the map
                   }}))
 
 (defn on-render [state img]
@@ -78,14 +83,10 @@
             :let [place (get-in (:world @state) [x y])]]
       (alter place assoc :home true
              :ant (domain/build-ant {:dir (rand-int 8)
+                                     :life (+ (get-in @state [:config :base-life]) (rand-int (get-in @state [:config :life-random]))) 
+                                     :energy (get-in @state [:config :start-enery])
+                                     :hunger-threshold (get-in @state [:config :hunger-threshold])
                                      :agent (agent (:location @place))}))))
-  state)
-
-(defn init-ants [state]
-  (doseq [row (:world @state), col row]
-    (alter col assoc :ant
-           (domain/build-ant {:dir (rand-int 8)
-                              :agent (agent (:location col))})))
   state)
 
 (defn init-food [state]

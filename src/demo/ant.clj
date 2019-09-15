@@ -18,6 +18,44 @@
 (defn turn [place amount]
   (update-in place [:ant :dir] (comp (partial bound 8) +) amount))
 
+; function to age an ant at a location
+; will decrement the life of an ant at a given location
+(defn age [place] 
+  (update-in place [:ant :life] dec))
+
+; function for an ant in a location to use some of its energy
+; will decrement the energy of an ant at a given location
+(defn use-energy [place]
+  (update-in place [:ant :energy] dec))
+
+(defn add-foods [current]
+  (+ current 5000))
+
+; function for an ant to eat the food it is currently carrying
+; the ant will dissoc the food it is carrying and gain energy
+(defn eat-food [place]
+  (-> place (update-in [:ant :energy] add-foods) (update :ant dissoc :food))
+)
+
+; function to check if an ant at a given location is hungery
+; an ant will be hungry if its energy is less than its hunger threshold
+(defn is-hungry [place]
+  (<= (get-in place [:ant :energy]) (get-in place [:ant :hunger-threshold])))
+
+; function to age an ant and have it use up a point of energy
+(defn do-step [place]
+  (age (use-energy place)))
+
+; kill an ant at a given location
+(defn die [place]
+  (dissoc place :ant))
+
+; function to check if an ant is still alive
+(defn alive [place]
+    (and 
+        (> (get-in place [:ant :life]) 0)
+        (> (get-in place [:ant :energy]) 0)))
+
 (def rank-by-pher (partial rank-by :pher))
 (def rank-by-home (partial rank-by #(if (:home %) 1 0)))
 (def rank-by-food (partial rank-by :food))
@@ -34,14 +72,37 @@
                          (ranks ahead-right)])]
     ((actions index) place)))
 
-(defn behave [config world place]
+(defn do-action [config world place]
   (let [[ahead & _] (world/nearby-places config world (:location place) (get-in place [:ant :dir]))]
-    (if (get-in place [:ant :food])
-      (cond
-        (:home place) (-> place drop-food turn-around)
-        (and (:home ahead) (not (:ant ahead))) (move place ahead)
-        :else (rand-behavior config world homing place))
-      (cond
-        (and (pos? (:food place)) (not (:home place))) (-> place take-food turn-around)
-        (and (pos? (:food ahead)) (not (:home ahead))) (move place ahead)
-        :else (rand-behavior config world foraging place)))))
+    (if (is-hungry place)
+      (if (get-in place [:ant :food])
+        (eat-food place)
+        (cond
+          (pos? (:food place)) (-> place take-food eat-food)
+          (pos? (:food ahead)) (move place ahead)
+          :else (rand-behavior config world foraging place)
+        )
+      )
+      (if (get-in place [:ant :food])
+        (cond
+          (:home place) (-> place drop-food turn-around)
+          (and (:home ahead) (not (:ant ahead))) (move place ahead)
+          :else (rand-behavior config world homing place))
+        (cond
+          (and (pos? (:food place)) (not (:home place))) (-> place take-food turn-around)
+          (and (pos? (:food ahead)) (not (:home ahead))) (move place ahead)
+          :else (rand-behavior config world foraging place)
+        )
+      )
+    )
+  )
+)
+    
+(defn behave [config world place]
+  (let [used-place (do-step place)]
+    (cond
+      (alive used-place) (do-action config world used-place)
+      :else (die used-place)
+    )
+  )
+)
