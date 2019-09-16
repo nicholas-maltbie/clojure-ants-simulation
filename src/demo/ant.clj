@@ -28,13 +28,12 @@
 (defn use-energy [place]
   (update-in place [:ant :energy] dec))
 
-(defn add-foods [current]
-  (+ current 5000))
-
 ; function for an ant to eat the food it is currently carrying
 ; the ant will dissoc the food it is carrying and gain energy
 (defn eat-food [place]
-  (-> place (update-in [:ant :energy] add-foods) (update :ant dissoc :food))
+  (let [eats (get-in place [:ant :food-energy])]
+    (-> place (update-in [:ant :energy] (fn [val] (+ val eats))) (update :ant dissoc :food))
+  )
 )
 
 ; function to check if an ant at a given location is hungery
@@ -48,6 +47,7 @@
 
 ; kill an ant at a given location
 (defn die [place]
+  (println "Ant is dead")
   (dissoc place :ant))
 
 ; function to check if an ant is still alive

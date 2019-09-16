@@ -3,7 +3,8 @@
             [demo.domain :as domain]
             [demo.ui.core :as ui]
             [demo.ui.world :as ui-world]
-            [demo.world :as world])
+            [demo.world :as world]
+            [demo.queen :as queen])
   (:gen-class :main -main))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; ant sim ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -31,14 +32,17 @@
                   :food-places 100 ; Number of places with food
                   :food-range 100 ; Max amount of food
                   :food-scale 30.0 ; Scale factor for food drawing
-                  :nants-sqrt 10 ; Number of ants = nants-sqrt^2
+                  :nants-sqrt 6 ; Number of ants = nants-sqrt^2
                   :pher-scale 20.0 ; Scale factor for pheromone drawing
                   :scale 5 ; Pixels per world cell
-                  :start-enery 5000
-                  :hunger-threshold 2000
-                  :base-life 50000
-                  :life-random 50000
-                  :num-queens 1 ; Number of queens to spawn on the map
+                  :start-enery 5000      ; How much energy does each ant start with
+                  :hunger-threshold 1000 ; What enery does an ant need to reach before
+                                         ; It will start eating food
+                  :base-life 5000        ; Base number of actions an ant can perform before it dies
+                  :life-random 5000      ; Random increase in ants life
+                  :food-energy 1000      ; How much energy does an ant gain when it eats
+                  :queen-food 100
+                  :queen-spawn 10
                   }}))
 
 (defn on-render [state img]
@@ -81,13 +85,39 @@
         home-range (range home-off (+ (get-in @state [:config :nants-sqrt]) home-off))]
     (doseq [x home-range y home-range
             :let [place (get-in (:world @state) [x y])]]
-      (alter place assoc :home true
-             :ant (domain/build-ant {:dir (rand-int 8)
-                                     :life (+ (get-in @state [:config :base-life]) (rand-int (get-in @state [:config :life-random]))) 
-                                     :energy (get-in @state [:config :start-enery])
-                                     :hunger-threshold (get-in @state [:config :hunger-threshold])
-                                     :agent (agent (:location @place))}))))
-  state)
+      (cond
+        (and (= x (int (+ home-off (/ (get-in @state [:config :nants-sqrt]) 2)))) 
+            (= y (int (+ home-off (/ (get-in @state [:config :nants-sqrt]) 2)))))
+          (alter place assoc
+          :home true
+          :queen (domain/build-queen 
+            {
+              :dir (rand-int 8)
+              :agent (agent (:location @place))
+              :held-food (get-in @state [:config :queen-food])
+              :spawn-threshold (get-in @state [:config :queen-spawn])
+              :spawn-state @state
+            }
+          )
+        )
+        :else (alter place assoc
+          :home true
+          :ant (domain/build-ant 
+            {
+              :dir (rand-int 8)
+              :life (+ (get-in @state [:config :base-life]) (rand-int (get-in @state [:config :life-random]))) 
+              :energy (get-in @state [:config :start-enery])
+              :hunger-threshold (get-in @state [:config :hunger-threshold])
+              :agent (agent (:location @place))
+              :food-energy (get-in @state [:config :food-energy])
+            }
+          )
+        )
+      )
+    )
+  )
+  state
+)
 
 (defn init-food [state]
   (doseq [_ (range (get-in @state [:config :food-places]))
@@ -139,10 +169,28 @@
           :when (:ant place)]
     (send-off (get-in place [:ant :agent]) ant-loop state)))
 
+(defn queen-loop [location state]
+  (Thread/sleep (get-in @state [:config :ant-sleep-ms]))
+  (dosync
+   (send-off *agent* queen-loop state)
+   (let [world (:world @state)
+         place @(get-in world location)
+         new-places (flatten [(queen/behave (:config @state) world place)])]
+     (doseq [new-place new-places]
+       (ref-set (get-in world (:location new-place)) new-place))
+     (-> new-places last :location))))
+
+(defn start-queen [state]
+  (doseq [row (:world @state), col row
+          :let [place @col]
+          :when (:queen place)]
+    (send-off (get-in place [:queen :agent]) queen-loop state)))
+
 (defn start [state]
   (send-off animator animation-loop state)
   (send-off evaporator evaporation-loop state)
-  (start-ants state))
+  (start-ants state)
+  (start-queen state))
 
 (defn -main []
   (dosync (-> app-state

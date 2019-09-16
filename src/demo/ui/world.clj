@@ -2,7 +2,8 @@
   (:require [demo.ui.ant :as ui-ant]
             [demo.world :as world]
             [demo.ui.core :as ui]
-            [demo.util :as util]))
+            [demo.util :as util]
+            [demo.ui.queen :as ui-queen]))
 
 (defn food-color [config food]
   (ui/color [255 0 0] food (:food-scale config)))
@@ -34,7 +35,8 @@
 
 (defn render-all-places [img config world]
   (doseq [x (range (:dim config)), y (range (:dim config))]
-    (let [{:keys [pher food ant]} (-> world (get-in [x y]) deref)]
+    (let [{:keys [pher food ant queen]} (-> world (get-in [x y]) deref)]
       (when (pos? pher) (render-place-as-pheromone img config pher x y))
       (when (pos? food) (render-place-as-food img config food x y))
-      (when ant (ui-ant/render-ant ant img config x y)))))
+      (when ant (ui-ant/render-ant ant img config x y))
+      (when queen (ui-queen/render-queen queen img config x y)))))

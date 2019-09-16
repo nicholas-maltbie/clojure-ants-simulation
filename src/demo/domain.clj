@@ -1,7 +1,11 @@
 (ns demo.domain)
 
 (defrecord Ant
-  [dir agent food])
+  [dir agent food life energy hunger-threshold])
+
+(defrecord Queen
+  [dir agent held-food spawn-threshold])
+
 
 (defrecord Cell
   [ant food home location pher])
@@ -11,3 +15,6 @@
 
 (defn build-ant [args]
   (map->Ant args))
+
+(defn build-queen [args]
+  (map->Queen args))
